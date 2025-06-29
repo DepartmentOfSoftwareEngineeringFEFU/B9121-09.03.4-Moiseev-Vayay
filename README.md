@@ -12,28 +12,28 @@ Tема диплома: РАЗРАБОТКА АВТОМАТИЗИРОВАННО�
 
 ### Стек технологий
 ### Backend
--Python 3.11 
+- Python 3.11 
 
--Django 
+- Django 
 
--Django REST Framework 
+- Django REST Framework 
 
--SQLite 
+- SQLite 
 
--Tinkoff Invest API (gRPC) 
+- Tinkoff Invest API (gRPC) 
 
--FinamTradeApiPy 
+- FinamTradeApiPy 
 
--asyncio 
+- asyncio 
 
--Pydantic 
+- Pydantic 
 
 ### Frontend
--HTML5, CSS3 
+- HTML5, CSS3 
 
--JavaScript (ES6+) 
+- JavaScript (ES6+) 
 
--Plotly.js 
+- Plotly.js 
 
--AJAX (Fetch API) 
+- AJAX (Fetch API) 
 
