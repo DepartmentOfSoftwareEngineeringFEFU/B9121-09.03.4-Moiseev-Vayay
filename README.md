@@ -64,6 +64,7 @@ cd arbitrage-project
 После установки:
 ```bash
 conda --version
+```
 
 
 3. Создайте и активируйте окружение:
