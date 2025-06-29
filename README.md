@@ -52,23 +52,23 @@ git clone https://github.com/your-username/arbitrage-project.git
 cd arbitrage-project
 
 2. Создайте и активируйте окружение:
-```bash
+
 conda env create -f environment.yml
 conda activate my_env_arb
 3.  Примените миграции:
-```bash
+
 python manage.py migrate
 
 4. Создайте суперпользователя(опционально)
-```bash
+
 python manage.py createsuperuser
 
 5.Запустите проект
-```bash
+
 python manage.py runserver
 
 6. Откройте в браузере
-```bash
+
 http://127.0.0.1:8000/login/
 
 
