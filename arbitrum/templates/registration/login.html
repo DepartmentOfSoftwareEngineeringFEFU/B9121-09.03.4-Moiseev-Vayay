@@ -1,0 +1,96 @@
+<h2 class="login-title">Вход</h2>
+
+<form method="post" class="login-form">
+    {% csrf_token %}
+    <label for="email">Логин:</label>
+    <input type="text" id="email" name="email" required>
+
+    <label for="password">Пароль:</label>
+    <input type="password" id="password" name="password" required>
+
+    <button type="submit">Войти</button>
+
+    {% if error %}
+    <p class="error-msg">{{ error }}</p>
+    {% endif %}
+
+    <a href="{% url 'register' %}" class="register-link">Нет аккаунта? Зарегистрироваться</a>
+</form>
+
+<style>
+  body {
+    background-color: #f1f3f5;
+    font-family: 'Segoe UI', sans-serif;
+  }
+
+  .login-title {
+    text-align: center;
+    color: #0d6efd;
+    margin-top: 60px;
+    font-size: 28px;
+    font-weight: bold;
+  }
+
+  .login-form {
+    max-width: 360px;
+    margin: 30px auto;
+    background: #fff;
+    padding: 30px 25px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border-left: 5px solid #0d6efd;
+  }
+
+  .login-form label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .login-form input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 16px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 15px;
+  }
+
+  .login-form button {
+    width: 100%;
+    padding: 10px;
+    background-color: #0d6efd;
+    border: none;
+    color: white;
+    font-size: 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+
+  .login-form button:hover {
+    background-color: #0b5ed7;
+  }
+
+  .register-link {
+    display: block;
+    text-align: center;
+    margin-top: 12px;
+    color: #0d6efd;
+    font-size: 0.95em;
+    text-decoration: none;
+  }
+
+  .register-link:hover {
+    text-decoration: underline;
+  }
+
+  .error-msg {
+    color: #dc3545;
+    font-size: 14px;
+    margin-top: 5px;
+    text-align: center;
+  }
+</style>

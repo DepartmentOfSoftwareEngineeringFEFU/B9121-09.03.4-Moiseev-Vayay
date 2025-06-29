@@ -1,0 +1,194 @@
+
+{% comment %} =====style========== {% endcomment %}
+<style>
+  body {
+    background-color: #f1f3f5;
+    font-family: 'Segoe UI', sans-serif;
+  }
+
+  form {
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 30px;
+    border-radius: 10px;
+    background-color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    border-left: 5px solid #0d6efd;
+  }
+
+  h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #0d6efd;
+  }
+
+  label {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  select {
+    width: 100%;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #ced4da;
+    margin-bottom: 20px;
+    font-size: 14px;
+  }
+
+  .form-row {
+    margin-bottom: 18px;
+  }
+
+  h4 {
+    margin-top: 30px;
+    margin-bottom: 10px;
+    font-size: 1.1em;
+    color: #444;
+  }
+
+  .exchange-option {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 12px 15px;
+    margin-bottom: 12px;
+  }
+
+  .exchange-option label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: normal;
+    margin: 0;
+  }
+
+  .tariff-select {
+    margin-top: 10px;
+  }
+
+  button[type="submit"] {
+    width: 100%;
+    padding: 12px;
+    background-color: #0d6efd;
+    border: none;
+    color: white;
+    font-size: 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+
+  button[type="submit"]:hover {
+    background-color: #0b5ed7;
+  }
+</style>
+
+
+<form method="post">
+  {% csrf_token %}
+<h2>Регистрация</h2>
+  <div class="form-row">
+    <label for="id_username">Имя</label>
+    {{ form.username }}
+  </div>
+
+  <div class="form-row">
+    <label for="id_email">Email</label>
+    {{ form.email }}
+  </div>
+
+  <div class="form-row">
+    <label for="id_passport_data">Паспорт</label>
+    {{ form.passport_data }}
+  </div>
+
+  
+
+  <div class="form-row">
+    <label for="id_password1">Пароль</label>
+    {{ form.password1 }}
+  </div>
+
+  <div class="form-row">
+    <label for="id_password2">Подтверждение</label>
+    {{ form.password2 }}
+  </div>
+
+  <h4>Где у вас есть аккаунт:</h4>
+  <div id="exchange-section">
+    {% for exchange in form.fields.exchanges.queryset %}
+      <div class="exchange-option">
+        <label>
+          <input type="checkbox" name="exchanges" value="{{ exchange.id }}">
+          {{ exchange.name }}
+        </label>
+        <div id="tariff-field-{{ exchange.id }}" class="tariff-select" style="display:none;"></div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <button type="submit">Зарегистрироваться</button>
+</form>
+{% if errors %}
+  <div style="color: red; margin-top: 10px;">
+    <h4>Ошибки:</h4>
+    <ul>
+      {% for field, error_list in errors.items %}
+        <li><strong>{{ field }}:</strong> {{ error_list|join:", " }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+  const exchangeCheckboxes = document.querySelectorAll('input[name="exchanges"]');
+
+  exchangeCheckboxes.forEach(checkbox => {
+    checkbox.addEventListener("change", function () {
+      const exchangeId = this.value;
+      const tariffField = document.getElementById(`tariff-field-${exchangeId}`);
+
+      if (this.checked) {
+        // Загружаем тарифы через API (или сразу из HTML — смотри ниже)
+        fetch(`/api/tariffs/?exchange_id=${exchangeId}`)
+          .then(res => res.json())
+          .then(data => {
+            const select = document.createElement("select");
+            select.name = `tariff_${exchangeId}`;
+            select.required = true;
+
+            const defaultOption = document.createElement("option");
+            defaultOption.text = "-- Выберите тариф --";
+            defaultOption.disabled = true;
+            defaultOption.selected = true;
+            select.appendChild(defaultOption);
+
+            data.forEach(tariff => {
+              const option = document.createElement("option");
+              option.value = tariff.id;
+              option.textContent = `${tariff.name} (${(tariff.commission * 100).toFixed(2)}%)`;
+              select.appendChild(option);
+            });
+
+            tariffField.innerHTML = '';  // очищаем старый select
+            tariffField.appendChild(select);
+            tariffField.style.display = 'block';
+          });
+      } else {
+        tariffField.innerHTML = '';
+        tariffField.style.display = 'none';
+      }
+    });
+  });
+
+});
+
+</script>

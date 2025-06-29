@@ -1,0 +1,663 @@
+<script>console.log("💡 JS работает");</script>
+
+<h2>Привет, {{ user.username }}!</h2>
+<h4>Ваши биржи:</h4>
+<ul>
+  {% for exchange in user.exchanges.all %}
+    <li>{{ exchange.name }}</li>
+  {% endfor %}
+</ul>
+<p>Паспорт: {{ user.passport_data|slice:":2" }}******{{ user.passport_data|slice:"-2:" }}</p>
+
+
+
+ {% comment %} import {% endcomment %}
+{% include './arbitrage_assets.html' %}
+
+
+{% comment %} 
+tinkoff=========== {% endcomment %}
+<label>Выберите актив  Тинькофф :</label>
+<select id="tinkoff-select">
+    <option value="SBER">SBER</option>
+</select>
+<h3>💵 Текущая цена tinkoff: <span id="live-price">...</span></h3>
+<div id="live-chart"></div>
+
+ {% comment %} FINAM========== {% endcomment %}
+<label for="ticker-select">Выберите актив Finam:</label>
+<select id="ticker-select">
+  <option value="SBER">SBER</option>
+  <option value="GAZP">GAZP</option>
+  <option value="YDEX">YDEX</option>
+  <option value="TATN">TATN</option>
+  <option value="LKOH">LKwefwefewfOH</option>
+</select>
+<h3>Finam Цена: <span id="finam-price">Загрузка...</span></h3>
+<div id="finam-chart" style="width:100%; height:400px;"></div>
+
+{% comment %} MYEXCH========== {% endcomment %}
+
+<label for="ticker-selectMy">Выберите тикер:</label>
+<select id="ticker-selectMy">
+  <option value="SBER">SBER — Сбербанк</option>
+  <option value="GAZP">GAZP — Газпром</option>
+  <option value="YAND">YAND — Яндекс</option>
+  <option value="TATN">TATN — Татнефть</option>
+</select>
+
+<h3 id="price-title">Текущая цена Alfa Invest <span id="my-ticker">SBER</span>: <span id="my-price">—</span> ₽</h3>
+
+<div id="my-chart" style="width:100%;height:400px;"></div>
+
+
+
+<script>
+  const userTariffs = {{ commissions|safe }};
+</script>
+
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script>
+    const tinkoffFigiMap = {
+        "SBER": "BBG004730N88",
+        "GAZP": "BBG004730RP0",
+        "YDEX": "TCS00A107T19",
+        "TATN": "BBG004RVFFC0"
+    };
+
+    //select
+    const tinkoffSelect = document.getElementById("tinkoff-select");
+
+    function populateTinkoffSelect() {
+        tinkoffSelect.innerHTML = ""; // Очистим всё старое
+    
+        for (const [ticker, figi] of Object.entries(tinkoffFigiMap)) {
+            const option = document.createElement("option");
+            option.value = ticker;              // ключ как value
+            option.textContent = ticker;        // отображаемый текст
+            tinkoffSelect.appendChild(option);
+        }
+    
+        // По умолчанию выбираем первый
+        const firstFigi = tinkoffFigiMap[tinkoffSelect.value];
+        reloadTinkoff(firstFigi);
+    }
+   //end select
+
+const tinkoffChart = document.getElementById("live-chart");
+const tinkoffPriceEl = document.getElementById("live-price");
+
+
+let tinkoffX = [], tinkoffY = [];
+let selectedFigi = null;
+Object.keys(tinkoffFigiMap).forEach(ticker => {
+    const option = document.createElement("option");
+    option.value = ticker;
+    option.text = ticker;
+    tinkoffSelect.appendChild(option);
+});
+tinkoffSelect.addEventListener("change", () => {
+    const selectedTicker = tinkoffSelect.value;
+    const figi = tinkoffFigiMap[selectedTicker];
+    reloadTinkoff(figi);
+});
+
+
+async function loadTinkoffHistory(figi) {
+    try {
+        const res = await fetch(`/api/brokers/history/?figi=${figi}&days=1`);
+        const data = await res.json();
+        const candles = data.candles;
+
+        if (!candles || candles.length === 0) {
+            console.warn("⚠️ Нет данных для Tinkoff графика");
+            return;
+        }
+
+        tinkoffX = candles.map(c => new Date(c.time));
+        tinkoffY = candles.map(c => c.price);
+
+        Plotly.react(tinkoffChart, [{
+            x: tinkoffX,
+            y: tinkoffY,
+            mode: "lines",
+            name: "Tinkoff"
+        }], {
+            title: "Tinkoff: Цена за день",
+            xaxis: { title: "Время" },
+            yaxis: { title: "₽" }
+        });
+    } catch (err) {
+        console.error("❌ Ошибка загрузки Tinkoff истории:", err);
+    }
+}
+
+async function fetchTinkoffPrice(figi) {
+    
+    try {
+        const res = await fetch(`/api/brokers/price/?figi=${figi}`);
+        const data = await res.json();
+        const price = data.price;
+        const now = new Date().toISOString();
+        console.log("tink price",price)
+        tinkoffPriceEl.innerText = price.toFixed(2);
+
+        const lastPrice = tinkoffY[tinkoffY.length - 1];
+        if (price !== lastPrice) {
+            tinkoffX.push(new Date(now));
+            tinkoffY.push(price);
+
+            Plotly.update(tinkoffChart, {
+                x: [tinkoffX],
+                y: [tinkoffY]
+            });
+        }
+    } catch (err) {
+        console.error("❌ Ошибка обновления Tinkoff цены:", err);
+    }
+}
+
+function reloadTinkoff(figi) {
+    selectedFigi = figi;
+    loadTinkoffHistory(figi).then(() => {
+        fetchTinkoffPrice(figi);
+        clearInterval(window._tinkoffInterval);
+        window._tinkoffInterval = setInterval(() => fetchTinkoffPrice(figi), 5000);
+    });
+
+}
+
+populateTinkoffSelect();
+        
+
+ 
+// FINAM======================
+
+const finamEl = document.getElementById("finam-chart");
+const finamPriceEl = document.getElementById("finam-price");
+const tickerSelect = document.getElementById("ticker-select");
+let selectedTicker = tickerSelect.value;
+
+tickerSelect.addEventListener("change", () => {
+    selectedTicker = tickerSelect.value;
+    reloadAll();
+});
+
+    let finamX = [], finamY = [];
+
+    async function loadFinamHistory() {
+        try {
+            const res = await fetch(`/api/brokers/finam/history/?code=${selectedTicker}`);
+            const data = await res.json();
+            const candles = data.candles;
+
+            if (!candles || candles.length === 0) return;
+
+            finamX = candles.map(c => new Date(c.time));
+            finamY = candles.map(c => c.price);
+
+            Plotly.newPlot(finamEl, [{
+                x: finamX,
+                y: finamY,
+                mode: "lines",
+                name: `Finam: ${selectedTicker}`
+            }], {
+                title: `Finam: ${selectedTicker}`,
+                autosize: true,
+                margin: { t: 50, l: 50, r: 30, b: 50 },
+                xaxis: {
+                    title: "Время",
+                    type: "date",
+                    tickformat: "%H:%M",
+                    tickangle: -45
+                },
+                yaxis: {
+                    title: "₽",
+                    fixedrange: false
+                }
+            }, {responsive: true});
+            
+        } catch (e) {
+            console.error("❌ Ошибка загрузки истории:", e);
+        }
+    }
+
+
+    async function fetchFinamPrice() {
+        try {
+            const res = await fetch(`/api/brokers/finam/price/?code=${selectedTicker}`);
+            
+            const data = await res.json();
+            if (data.error || typeof data.price === "undefined") {
+                console.warn("⚠️ Ошибка или нет данных от Finam:", data.error);
+                return;
+            }
+            const price = data.price;
+            const now = new Date();
+            console.log("📦 Получен ответ ФИНАМ:", data);
+            
+            finamPriceEl.innerText = price.toFixed(2);
+
+            const lastPrice = Math.round(finamY[finamY.length - 1] * 100) / 100;
+            const roundedPrice = Math.round(price * 100) / 100;
+            if (roundedPrice !== lastPrice) {
+            finamX.push(now);
+            finamY.push(price);
+
+            Plotly.update(finamEl, {
+                x: [finamX],
+                y: [finamY] 
+            });
+        }
+        } catch (e) {
+            console.error("❌ Ошибка обновления Finam цены:", e);
+        }
+    }
+    function reloadAll() {
+        loadFinamHistory().then(() => {
+            fetchFinamPrice();
+            clearInterval(window._finamInterval);
+            window._finamInterval = setInterval(fetchFinamPrice, 5000);
+        });
+    }
+
+    reloadAll();
+    
+
+    // MY_EXCH =====================
+
+    
+    
+     const chartId = 'my-chart';
+  let xData = [];
+  let yData = [];
+
+  let selectedTickerMy = document.getElementById("ticker-selectMy").value;
+  let priceInterval = null;
+
+  function updateTitleAndChart() {
+    document.getElementById("my-ticker").innerText = selectedTickerMy;
+
+    Plotly.react(chartId, [{
+      x: [],
+      y: [],
+      mode: 'lines+markers',
+      line: { shape: 'spline' },
+      name: 'Цена'
+    }], {
+      title: `Цена актива ${selectedTickerMy}`,
+      xaxis: { title: 'Время' },
+      yaxis: { title: 'Цена (₽)' }
+    });
+
+    xData = [];
+    yData = [];
+  }
+
+  function fetchPrice() {
+    fetch(`/api/stream/${selectedTickerMy}/`)
+      .then(res => res.json())
+      .then(data => {
+        const time = new Date().toLocaleTimeString();
+        xData.push(time);
+        yData.push(data.price);
+
+        Plotly.update(chartId, {
+          x: [xData],
+          y: [yData]
+        });
+
+        document.getElementById("my-price").innerText = data.price.toFixed(2);
+        console.log("ALFA price", data.price)
+      })
+      .catch(err => console.error('Ошибка получения цены:', err));
+  }
+
+  function startFetchingPrice() {
+    if (priceInterval) clearInterval(priceInterval);
+    priceInterval = setInterval(fetchPrice, 5000);
+  }
+
+  // Слушатель выбора тикера
+  document.getElementById("ticker-selectMy").addEventListener("change", () => {
+    selectedTickerMy = document.getElementById("ticker-selectMy").value;
+    updateTitleAndChart();
+    startFetchingPrice();
+  });
+
+  // Первый запуск
+  updateTitleAndChart();
+  startFetchingPrice();
+
+
+// арбтраж================
+
+async function getPricesForAsset(asset) {
+    const { figis } = asset;
+
+    try {
+      const responses = await Promise.all([
+        fetch(`/api/brokers/finam/price/?code=${figis.FINAM}`),
+        fetch(`/api/brokers/price/?figi=${figis.TINK}`),
+        fetch(`/api/stream/${figis.ALFA}/`)
+      ]);
+
+      const [finam, tinkoff, ALFA] = await Promise.all(responses.map(r => r.json()));
+      return {
+        FINAM: finam.price,
+        TINK: tinkoff.price,
+        ALFA: ALFA.price
+      };
+    } catch (e) {
+      console.error(`Ошибка получения цен для ${asset.code}:`, e);
+      return {};
+    }
+  }
+
+  function getCSRFToken() {
+    const cookieValue = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('csrftoken='))
+      ?.split('=')[1];
+    return cookieValue;
+  }
+// insert DB
+  async function reportArbitrage(asset, exchangeFrom, exchangeTo, priceFrom, priceTo) {
+    const profit = +(priceTo - priceFrom).toFixed(2);
+    const profitPercent = +((profit / priceFrom) * 100).toFixed(2);
+
+    const payload = {
+      asset: asset,
+      exchange_from: exchangeFrom,
+      exchange_to: exchangeTo,
+      price_from: priceFrom,
+      price_to: priceTo,
+      profit: profit,
+      profit_percent: profitPercent
+    };
+
+    try {
+      const res = await fetch("/api/arbitrage_situation/report/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCSRFToken()
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      console.log("✅ Ответ от сервера:", res.status, data);
+
+    } catch (error) {
+      console.error("❌ Ошибка отправки арбитража:", error);
+    }
+  }
+
+  function calculateProfitWithCommission(priceFrom, priceTo, commissionFrom, commissionTo) {
+  const cost = +(priceFrom * (1 + commissionFrom)).toFixed(2);
+  const revenue = +(priceTo * (1 - commissionTo)).toFixed(2);
+  const profit = +(revenue - cost).toFixed(2);
+  return { cost, revenue, profit };
+}
+
+  async function findArbitrageWithinAsset(assetCode, prices) {
+  const pairs = [
+      ["FINAM", "TINK"],
+      ["FINAM", "ALFA"],
+      ["TINK", "ALFA"]
+    ];
+  console.log("🔎 userTariffs:", userTariffs);
+
+  for (const [from, to] of pairs) {
+    const rawFrom = prices[from];
+    const rawTo = prices[to];
+
+    const commissionFrom = (userTariffs[from] || 0) / 100;
+    const commissionTo = (userTariffs[to] || 0) / 100;
+
+    const { cost, revenue, profit } = calculateProfitWithCommission(rawFrom, rawTo, commissionFrom, commissionTo);
+    const { cost: revCost, revenue: revRevenue, profit: reverseProfit } = calculateProfitWithCommission(rawTo, rawFrom, commissionTo, commissionFrom);
+
+    console.log(`🔍 ${assetCode}: ${from} → ${to}`);
+    console.log(`   Цена покупки: ${rawFrom}, цена продажи: ${rawTo}`);
+    console.log(`   Комиссии: покупка = ${(commissionFrom * 100).toFixed(2)}%, продажа = ${(commissionTo * 100).toFixed(2)}%`);
+    console.log(`   ➖ Прибыль с учётом комиссий: ${profit} ₽`);
+    console.log(`   ⬅️ Обратное направление: ${reverseProfit} ₽`);
+    if (profit  > 5) {
+        console.log(`💥 Арбитраж ${assetCode}: купить на ${from}, продать на ${to}`);
+        console.log(`   Комиссии: покупка = ${(commissionFrom * 100).toFixed(2)}%, продажа = ${(commissionTo * 100).toFixed(2)}%`);
+        await reportArbitrage(assetCode, from, to, cost, revenue);
+        await new Promise(resolve => setTimeout(resolve, 600));
+        } else if (reverseProfit > 5) {
+        console.log(`💥 Арбитраж ${assetCode}: купить на ${to}, продать на ${from}`);
+        console.log(`   Комиссии: покупка = ${(commissionTo * 100).toFixed(2)}%, продажа = ${(commissionFrom * 100).toFixed(2)}%`);
+        await reportArbitrage(assetCode, to, from, revCost, revRevenue);
+        await new Promise(resolve => setTimeout(resolve, 600));
+    }
+
+  }
+}
+
+ async function checkAllAssetsArbitrage() {
+  for (const asset of assets) {
+    const prices = await getPricesForAsset(asset);
+    await findArbitrageWithinAsset(asset.code, prices);
+    await new Promise(resolve => setTimeout(resolve, 600)); // пауза между активами
+  }
+}
+
+  // Запускаем поиск арбитража каждые 5 секунд
+  async function startArbitrageLoop() {
+  while (true) {
+    await checkAllAssetsArbitrage();
+    await new Promise(resolve => setTimeout(resolve, 5000)); // пауза между циклами
+  }
+}
+
+startArbitrageLoop();
+
+//загруз в БД
+
+</script>
+
+
+{% include './arbitrage_card.html' %}
+<h3>⚡ Арбитражные возможности</h3>
+<div id="arbitrage-cards-container"></div>
+<script>
+async function loadArbitrageCards() {
+  const res = await fetch('/api/arbitrage_situation/list/');
+  const data = await res.json();
+
+  const container = document.getElementById("arbitrage-cards-container");
+  container.innerHTML = "";
+
+  if (data.length === 0) {
+    container.innerHTML = "<p>Нет активных арбитражных ситуаций.</p>";
+    return;
+  }
+
+  data.forEach(arb => {
+    const card = document.createElement("div");
+    card.className = "arb-card";
+    card.innerHTML = `
+      <div class="arb-exchanges">
+        <div class="exchange-box">
+          <div class="exchange-name buy">Покупка: ${arb.exchange_from}</div>
+          <div class="exchange-price">${arb.price_from} ₽</div>
+          
+          ${arb.link_from ? `<a href="${arb.link_from}" target="_blank" class="exchange-link">🔗 Перейти к покупке</a>` : ""}
+        </div>
+        <div class="arrow">&#8594;</div>
+        <div class="exchange-box">
+          <div class="exchange-name sell">Продажа: ${arb.exchange_to}</div>
+          <div class="exchange-price">${arb.price_to} ₽</div>
+          ${arb.link_to ? `<a href="${arb.link_to}" target="_blank" class="exchange-link">🔗 Перейти к продаже</a>` : ""}
+        </div>
+      </div>
+      <div class="arb-details">
+        <span>Актив: ${arb.asset}</span>
+        <span class="profit">Профит: ${arb.profit} ₽ (${arb.profit_percent}%)</span>
+      </div>
+    `;
+    container.prepend(card);  // новые сверху
+  });
+}
+
+// Обновлять список каждые 5 секунд
+setInterval(loadArbitrageCards, 5000);
+loadArbitrageCards();
+</script>
+
+
+
+<style>
+  body {
+    font-family: 'Segoe UI', 'Roboto', sans-serif;
+    background-color: #f9f9f9;
+    color: #212529;
+    padding: 20px;
+  }
+
+  h2, h3, h4 {
+    color: #0d6efd;
+    border-left: 5px solid #0d6efd;
+    padding-left: 12px;
+    margin-top: 30px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  select, label {
+    font-size: 15px;
+    color: #333;
+    margin-top: 12px;
+    display: block;
+  }
+
+  select {
+    background-color: #ffffff;
+    color: #212529;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    padding: 6px 12px;
+    margin-bottom: 12px;
+  }
+
+  #live-chart, #finam-chart, #my-chart {
+    border: 2px solid #dee2e6;
+    border-radius: 10px;
+    background-color: #fff;
+    margin-bottom: 30px;
+    box-shadow: 0 0 10px rgba(13, 110, 253, 0.1);
+  }
+
+  .arb-card {
+    background-color: #ffffff;
+    border: 2px solid #d1e7dd;
+    border-left: 5px solid #198754;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .arb-card:hover {
+    transform: scale(1.015);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  }
+
+  .arb-exchanges {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .exchange-box {
+    flex: 1;
+    text-align: center;
+    padding: 12px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+  }
+
+  .exchange-name.buy {
+    color: #28a745;
+    font-weight: bold;
+    font-size: 1.1em;
+  }
+
+  .exchange-name.sell {
+    color: #dc3545;
+    font-weight: bold;
+    font-size: 1.1em;
+  }
+
+  .exchange-price {
+    font-size: 1.4em;
+    margin: 8px 0;
+    font-weight: bold;
+    color: #000;
+  }
+
+  .exchange-link {
+    text-decoration: none;
+    color: #0d6efd;
+    font-size: 0.85em;
+  }
+
+  .exchange-link:hover {
+    text-decoration: underline;
+  }
+
+  .arrow {
+    font-size: 2em;
+    color: #ffc107;
+    padding: 0 15px;
+  }
+
+  .arb-details {
+    margin-top: 12px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9em;
+    color: #495057;
+  }
+
+  .profit {
+    font-weight: bold;
+    color: #198754;
+  }
+
+  #arbitrage-cards-container {
+    margin-top: 35px;
+  }
+
+  ul {
+    list-style: none;
+    padding-left: 0;
+    margin-bottom: 20px;
+  }
+
+  ul li {
+    padding: 4px 0;
+    color: #333;
+  }
+
+  ul li::before {
+    content: "▶ ";
+    color: #0d6efd;
+  }
+
+  p {
+    color: #555;
+  }
+
+  option {
+    background-color: #fff;
+  }
+</style>
+
