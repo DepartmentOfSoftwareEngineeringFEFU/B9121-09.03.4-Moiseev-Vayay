@@ -48,7 +48,7 @@ Tема диплома: РАЗРАБОТКА АВТОМАТИЗИРОВАННО�
 1. Клонируйте репозиторий:
 
 ```bash
-git clone https://github.com/your-username/arbitrage-project.git
+git clone https://github.com/DepartmentOfSoftwareEngineeringFEFU/B9121-09.03.4-Moiseev-Vayay.git
 cd arbitrage-project
 ```
 
